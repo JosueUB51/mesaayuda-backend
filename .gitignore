@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Mac
+.DS_Store
+
+# Uploads
+app/uploads/
+uploads/
+
+# Data
+data/
