@@ -43,7 +43,7 @@ class ChatRequest(BaseModel):
 # ==================================================
 # 💬 CHAT PRINCIPAL
 # ==================================================
-@app.post("/chat")
+@app.post("/chat/")
 def chat(request: ChatRequest):
     response = run_intelligent_agent(
         request.session_id,
