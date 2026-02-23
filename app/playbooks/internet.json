@@ -1,0 +1,9 @@
+{
+  "steps": [
+    { "ask": "¿Estás conectado por WiFi o cable Ethernet?" },
+    { "ask": "¿En qué edificio y piso te encuentras?" },
+    { "ask": "¿Tu equipo muestra 'Sin internet' o solo carga lento?" },
+    { "ask": "Por favor reinicia tu equipo y dime si ya se restableció la conexión (responde 'sí' o 'no')." }
+  ],
+  "resolution_check": true
+}

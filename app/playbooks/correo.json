@@ -1,0 +1,8 @@
+{
+  "steps": [
+    { "ask": "¿Cuál es tu usuario institucional de correo?" },
+    { "ask": "¿Qué mensaje de error te aparece exactamente?" },
+    { "ask": "¿Desde cuándo no puedes acceder?" },
+    { "ask": "Intenta restablecer tu contraseña desde el portal institucional. ¿Se resolvió? (sí/no)" }
+  ]
+}

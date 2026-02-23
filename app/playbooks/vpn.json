@@ -1,0 +1,7 @@
+{
+  "steps": [
+    { "ask": "¿Ya llenaste el formato de solicitud de VPN?" },
+    { "ask": "¿En qué edificio y piso te encuentras?" },
+    { "ask": "¿Qué error te muestra al intentar conectar?" }
+  ]
+}
