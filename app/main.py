@@ -12,26 +12,35 @@ from app.agent.memory import get_session, get_all_tickets
 app = FastAPI()
 
 # ==================================================
-# 🔥 CORS PRODUCCIÓN
+# 🔥 CORS CONFIGURACIÓN PRODUCCIÓN
 # ==================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 🔥 producción
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],          # Permite cualquier origen (por ahora)
+    allow_credentials=False,      # 🔥 IMPORTANTE para evitar error de preflight
+    allow_methods=["*"],          # Permite todos los métodos (POST, GET, OPTIONS)
+    allow_headers=["*"],          # Permite todos los headers
 )
 
+# ==================================================
+# 📂 CONFIGURACIÓN DE CARPETAS
+# ==================================================
 STATIC_FOLDER = "app/static"
 UPLOAD_FOLDER = "app/uploads"
 
 os.makedirs(STATIC_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# ==================================================
+# 📥 MODELO DE REQUEST
+# ==================================================
 class ChatRequest(BaseModel):
     session_id: str
     message: str
 
+# ==================================================
+# 💬 CHAT PRINCIPAL
+# ==================================================
 @app.post("/chat")
 def chat(request: ChatRequest):
     response = run_intelligent_agent(
@@ -44,10 +53,16 @@ def chat(request: ChatRequest):
 
     return {"response": response}
 
+# ==================================================
+# 📋 LISTAR TICKETS
+# ==================================================
 @app.get("/tickets")
 def list_tickets():
     return get_all_tickets()
 
+# ==================================================
+# 🧪 ROOT TEST
+# ==================================================
 @app.get("/")
 def root():
     return {"status": "Mesa de Ayuda IA funcionando correctamente"}
