@@ -1,23 +1,14 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 
 import os
-import shutil
 
 from app.agent.router import classify_intent
 from app.agent.playbook_engine import run_intelligent_agent
 from app.agent.memory import get_session, get_all_tickets
 
 app = FastAPI()
-
-# ==================================================
-# 🔥 PROXY HEADERS (CLAVE EN COOLIFY)
-# ==================================================
-# Permite que FastAPI confíe en los headers del reverse proxy
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # ==================================================
 # 🔥 CORS CONFIGURACIÓN PRODUCCIÓN
