@@ -1,9 +1,8 @@
 from openai import OpenAI
-from app.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, MODEL
+from app.config import OPENAI_API_KEY, MODEL
 
 client = OpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url=OPENROUTER_BASE_URL
+    api_key=OPENAI_API_KEY
 )
 
 def classify_intent(message: str):

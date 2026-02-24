@@ -1,7 +1,7 @@
 import json
 import os
 from openai import OpenAI
-from app.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, MODEL
+from app.config import OPENAI_API_KEY, MODEL
 from app.agent.memory import get_session
 from app.agent.router import classify_intent
 
@@ -21,12 +21,7 @@ USER_QUESTIONS = [
 ]
 
 client = OpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url=OPENROUTER_BASE_URL,
-    default_headers={
-        "HTTP-Referer": PUBLIC_BACKEND_URL or "",
-        "X-Title": "Mesa de Ayuda IA"
-    }
+    api_key=OPENAI_API_KEY
 )
 
 # =========================================
