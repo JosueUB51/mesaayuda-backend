@@ -9,6 +9,8 @@ from app.agent.router import classify_intent
 # CONFIGURACIÓN
 # =========================================
 
+PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL")
+
 USER_FIELDS = ["nombre", "area", "edificio", "piso"]
 
 USER_QUESTIONS = [
@@ -20,9 +22,12 @@ USER_QUESTIONS = [
 
 client = OpenAI(
     api_key=OPENROUTER_API_KEY,
-    base_url=OPENROUTER_BASE_URL
+    base_url=OPENROUTER_BASE_URL,
+    default_headers={
+        "HTTP-Referer": PUBLIC_BACKEND_URL or "",
+        "X-Title": "Mesa de Ayuda IA"
+    }
 )
-
 
 # =========================================
 # CARGAR PLAYBOOK
@@ -47,10 +52,6 @@ def load_playbook(intent):
 def run_intelligent_agent(session_id, user_input):
 
     session = get_session(session_id)
-
-    # =========================================
-    # INICIALIZACIÓN SEGURA
-    # =========================================
 
     session.setdefault("intent", None)
     session.setdefault("status", "collecting_user_data")
@@ -116,11 +117,10 @@ def run_intelligent_agent(session_id, user_input):
 Una vez que lo subas, procesaremos tu solicitud.
 """,
                 "fileName": "Formato_Solicitud_VPN.pdf",
-                "url": "http://127.0.0.1:8000/vpn/formato"
+                "url": f"{PUBLIC_BACKEND_URL}/vpn/formato"
             }
 
         else:
-            # 🔥 CERRAR FLUJO
             session["intent"] = None
             session["status"] = "completed"
 
@@ -147,11 +147,10 @@ Una vez que lo subas, procesaremos tu solicitud.
 Una vez que lo subas, procesaremos tu solicitud.
 """,
                 "fileName": "Formato_Solicitud_Correo.pdf",
-                "url": "http://127.0.0.1:8000/correo/formato"
+                "url": f"{PUBLIC_BACKEND_URL}/correo/formato"
             }
 
         else:
-            # 🔥 CERRAR FLUJO
             session["intent"] = None
             session["status"] = "completed"
 
@@ -184,15 +183,20 @@ Responde profesionalmente y de forma conversacional.
 
     messages = [{"role": "system", "content": system_prompt}] + session["history"]
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        max_tokens=400,
-        temperature=0.4,
-        messages=messages
-    )
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            max_tokens=400,
+            temperature=0.4,
+            messages=messages
+        )
 
-    answer = response.choices[0].message.content
+        answer = response.choices[0].message.content
 
-    session["history"].append({"role": "assistant", "content": answer})
+        session["history"].append({"role": "assistant", "content": answer})
 
-    return answer
+        return answer
+
+    except Exception as e:
+        print("ERROR OPENROUTER:", e)
+        return "Ocurrió un error procesando tu solicitud. Intenta nuevamente."
