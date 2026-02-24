@@ -1,12 +1,10 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-import os
-
-from app.agent.router import classify_intent
 from app.agent.playbook_engine import run_intelligent_agent
-from app.agent.memory import get_session, get_all_tickets
 
 app = FastAPI()
 
@@ -15,7 +13,7 @@ app = FastAPI()
 # ==================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex="https?://.*sslip.io",
+    allow_origin_regex=r"https?://.*sslip\.io",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,14 +36,42 @@ class ChatRequest(BaseModel):
     message: str
 
 # ==================================================
+# 📄 DESCARGA DE FORMATOS (PDFs)
+# ==================================================
+@app.get("/vpn/formato")
+def descargar_formato_vpn():
+    path = os.path.join(STATIC_FOLDER, "vpn_formato.pdf")
+    if not os.path.exists(path):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Archivo vpn_formato.pdf no encontrado en app/static"}
+        )
+    return FileResponse(
+        path=path,
+        media_type="application/pdf",
+        filename="Formato_Solicitud_VPN.pdf"
+    )
+
+@app.get("/correo/formato")
+def descargar_formato_correo():
+    path = os.path.join(STATIC_FOLDER, "correo_formato.pdf")
+    if not os.path.exists(path):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Archivo correo_formato.pdf no encontrado en app/static"}
+        )
+    return FileResponse(
+        path=path,
+        media_type="application/pdf",
+        filename="Formato_Solicitud_Correo.pdf"
+    )
+
+# ==================================================
 # 💬 CHAT PRINCIPAL
 # ==================================================
 @app.post("/chat/")
 async def chat(request: ChatRequest):
-    response = run_intelligent_agent(
-        request.session_id,
-        request.message
-    )
+    response = run_intelligent_agent(request.session_id, request.message)
 
     if isinstance(response, dict):
         return response
@@ -57,6 +83,8 @@ async def chat(request: ChatRequest):
 # ==================================================
 @app.get("/tickets/")
 async def list_tickets():
+    # si esto te fallara porque no está importado, me avisas y lo ajusto
+    from app.agent.memory import get_all_tickets
     return get_all_tickets()
 
 # ==================================================

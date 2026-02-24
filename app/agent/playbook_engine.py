@@ -1,15 +1,14 @@
 import json
 import os
 from openai import OpenAI
-from app.config import OPENAI_API_KEY, MODEL
+
+from app.config import OPENAI_API_KEY, MODEL, BACKEND_PUBLIC_URL
 from app.agent.memory import get_session
 from app.agent.router import classify_intent
 
 # =========================================
 # CONFIGURACIÓN
 # =========================================
-
-PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL")
 
 USER_FIELDS = ["nombre", "area", "edificio", "piso"]
 
@@ -20,9 +19,7 @@ USER_QUESTIONS = [
     "¿En qué piso estás ubicado?"
 ]
 
-client = OpenAI(
-    api_key=OPENAI_API_KEY
-)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # =========================================
 # CARGAR PLAYBOOK
@@ -33,19 +30,20 @@ def load_playbook(intent):
         return None
 
     path = f"app/playbooks/{intent}.json"
+    if not json or not path:
+        return None
+
     if not os.path.exists(path):
         return None
 
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
-
 
 # =========================================
 # AGENTE PRINCIPAL
 # =========================================
 
 def run_intelligent_agent(session_id, user_input):
-
     session = get_session(session_id)
 
     session.setdefault("intent", None)
@@ -66,7 +64,6 @@ def run_intelligent_agent(session_id, user_input):
     # =========================================
 
     if session["status"] == "collecting_user_data":
-
         if session["user_step"] == 0 and session["user_data"]["nombre"] is None:
             session["user_step"] = 1
             return USER_QUESTIONS[0]
@@ -84,23 +81,20 @@ def run_intelligent_agent(session_id, user_input):
 
         session["status"] = "active"
         session["user_step"] = None
-
         return f"Gracias {session['user_data']['nombre']}. Ahora descríbeme tu problema."
 
     # =========================================
     # CLASIFICAR INTENCIÓN
     # =========================================
-
     if session["intent"] is None:
         session["intent"] = classify_intent(user_input)
 
     # =========================================
     # FLUJO VPN
     # =========================================
-
     if session["intent"] == "vpn":
-
         if not session["vpn_form_uploaded"]:
+            url = f"{BACKEND_PUBLIC_URL}/vpn/formato" if BACKEND_PUBLIC_URL else "/vpn/formato"
             return {
                 "type": "vpn_download",
                 "message": """Para continuar con tu solicitud de VPN:
@@ -112,13 +106,11 @@ def run_intelligent_agent(session_id, user_input):
 Una vez que lo subas, procesaremos tu solicitud.
 """,
                 "fileName": "Formato_Solicitud_VPN.pdf",
-                "url": f"{PUBLIC_BACKEND_URL}/vpn/formato"
+                "url": url
             }
-
         else:
             session["intent"] = None
             session["status"] = "completed"
-
             return {
                 "type": "vpn_success",
                 "message": "Tu solicitud de VPN fue recibida correctamente. Recibirás tus credenciales en tu correo institucional."
@@ -127,10 +119,9 @@ Una vez que lo subas, procesaremos tu solicitud.
     # =========================================
     # FLUJO CORREO
     # =========================================
-
     if session["intent"] == "correo":
-
         if not session["correo_form_uploaded"]:
+            url = f"{BACKEND_PUBLIC_URL}/correo/formato" if BACKEND_PUBLIC_URL else "/correo/formato"
             return {
                 "type": "correo_download",
                 "message": """Para solicitar un correo institucional:
@@ -142,13 +133,11 @@ Una vez que lo subas, procesaremos tu solicitud.
 Una vez que lo subas, procesaremos tu solicitud.
 """,
                 "fileName": "Formato_Solicitud_Correo.pdf",
-                "url": f"{PUBLIC_BACKEND_URL}/correo/formato"
+                "url": url
             }
-
         else:
             session["intent"] = None
             session["status"] = "completed"
-
             return {
                 "type": "correo_success",
                 "message": "Tu solicitud de correo fue recibida correctamente. Recibirás tus credenciales en breve."
@@ -157,7 +146,6 @@ Una vez que lo subas, procesaremos tu solicitud.
     # =========================================
     # AGENTE IA NORMAL
     # =========================================
-
     playbook = load_playbook(session["intent"])
 
     session["history"].append({"role": "user", "content": user_input})
@@ -185,13 +173,10 @@ Responde profesionalmente y de forma conversacional.
             temperature=0.4,
             messages=messages
         )
-
         answer = response.choices[0].message.content
-
         session["history"].append({"role": "assistant", "content": answer})
-
         return answer
 
     except Exception as e:
-        print("ERROR OPENROUTER:", e)
+        print("ERROR OPENAI:", e)
         return "Ocurrió un error procesando tu solicitud. Intenta nuevamente."
