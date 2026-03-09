@@ -21,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATIC_FOLDER = "app/static"
+STATIC_FOLDER = os.path.join(os.getcwd(), "app", "static")
 UPLOAD_FOLDER = "app/uploads"
 
 os.makedirs(STATIC_FOLDER, exist_ok=True)

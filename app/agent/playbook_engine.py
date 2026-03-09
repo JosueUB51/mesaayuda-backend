@@ -19,7 +19,9 @@ USER_QUESTIONS = [
 
 
 def load_playbook(intent):
+
     path = f"app/playbooks/{intent}.json"
+
     if not os.path.exists(path):
         return None
 
@@ -48,15 +50,65 @@ def run_intelligent_agent(session_id, user_input):
     })
 
     # =========================================
-    # 1 DETECTAR INTENCIÓN PRIMERO
+    # SESIÓN COMPLETADA
+    # =========================================
+
+    if session.get("status") == "completed":
+
+        system_prompt = """
+Eres un agente humano de Mesa de Ayuda.
+
+La solicitud del usuario ya fue registrada correctamente y el equipo técnico la procesará.
+
+Responde de forma natural dependiendo del mensaje del usuario.
+"""
+
+        response = client.chat.completions.create(
+            model=MODEL,
+            temperature=0.4,
+            max_tokens=150,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ]
+        )
+
+        return response.choices[0].message.content
+
+    # =========================================
+    # BIENVENIDA
+    # =========================================
+
+    if session["status"] == "welcome":
+
+        session["status"] = "intent_detection"
+
+        return """Hola 👋
+
+Soy el asistente de Mesa de Ayuda.
+
+Puedo ayudarte con:
+
+• Internet
+• VPN
+• Correo institucional
+• Sistemas
+
+Por favor describe tu problema."""
+
+    # =========================================
+    # DETECTAR INTENCIÓN
     # =========================================
 
     if session["status"] == "intent_detection":
 
         intent = classify_intent(user_input)
+
         session["intent"] = intent
+        session["problem_description"] = user_input
 
         if intent == "otro":
+
             return """Hola 👋
 
 Puedo ayudarte con los siguientes servicios:
@@ -73,7 +125,7 @@ Por favor describe tu problema."""
         return USER_QUESTIONS[0]
 
     # =========================================
-    # 2 RECOLECCIÓN DE DATOS
+    # RECOLECTAR DATOS
     # =========================================
 
     if session["status"] == "collecting_user_data":
@@ -81,25 +133,17 @@ Por favor describe tu problema."""
         field_index = session["user_step"]
 
         if field_index < len(USER_FIELDS):
+
             field_name = USER_FIELDS[field_index]
+
             session["user_data"][field_name] = user_input
 
             session["user_step"] += 1
 
             if session["user_step"] < len(USER_FIELDS):
+
                 return USER_QUESTIONS[session["user_step"]]
 
-        session["status"] = "collecting_problem"
-
-        return "Gracias. Ahora descríbeme tu problema."
-
-    # =========================================
-    # 3 GUARDAR PROBLEMA
-    # =========================================
-
-    if session["status"] == "collecting_problem":
-
-        session["problem_description"] = user_input
         session["status"] = "active"
 
     # =========================================
@@ -108,32 +152,57 @@ Por favor describe tu problema."""
 
     if session["intent"] == "vpn":
 
-        if not session["vpn_form_uploaded"]:
+        problem = (session.get("problem_description") or "").lower()
+
+        keywords_solicitud = [
+            "solicitar",
+            "crear vpn",
+            "alta vpn",
+            "nueva vpn",
+            "pedir vpn"
+        ]
+
+        solicitud = any(k in problem for k in keywords_solicitud)
+
+        # ---------------------------
+        # SOLICITUD VPN
+        # ---------------------------
+
+        if solicitud:
+
+            if session.get("vpn_form_uploaded"):
+
+                session["status"] = "completed"
+
+                return {
+                    "type": "vpn_success",
+                    "message": """Tu solicitud de VPN fue recibida correctamente.
+
+El equipo técnico procesará tu solicitud.
+Normalmente tarda entre 24 y 48 horas."""
+                }
 
             url = f"{BACKEND_PUBLIC_URL}/vpn/formato"
 
             return {
                 "type": "vpn_download",
-                "message": """Para continuar con tu solicitud de VPN:
+                "message": """Para solicitar VPN:
 
-1. Descarga el formato oficial
-2. Llénalo completamente
-3. Súbelo usando el botón +
+1. Descarga el formato
+2. Llénalo
+3. Asegúrate de que el formato esté nombrado correctamente (vpn_formato.pdf)
+4. Súbelo usando el botón +
 
-Una vez que lo subas procesaremos tu solicitud.
-""",
+Procesaremos tu solicitud.""",
                 "fileName": "Formato_Solicitud_VPN.pdf",
                 "url": url
             }
 
-        else:
+        # ---------------------------
+        # PROBLEMA VPN
+        # ---------------------------
 
-            session["status"] = "completed"
-
-            return {
-                "type": "vpn_success",
-                "message": "Tu solicitud de VPN fue recibida correctamente. Recibirás tus credenciales en tu correo institucional."
-            }
+        # continuar diagnóstico con IA
 
     # =========================================
     # FLUJO CORREO
@@ -141,7 +210,33 @@ Una vez que lo subas procesaremos tu solicitud.
 
     if session["intent"] == "correo":
 
-        if not session["correo_form_uploaded"]:
+        problem = (session.get("problem_description") or "").lower()
+
+        keywords_solicitud = [
+            "solicitar",
+            "crear correo",
+            "nuevo correo",
+            "alta de correo"
+        ]
+
+        solicitud = any(k in problem for k in keywords_solicitud)
+
+        # ---------------------------
+        # SOLICITUD CORREO
+        # ---------------------------
+
+        if solicitud:
+
+            if session.get("correo_form_uploaded"):
+
+                session["status"] = "completed"
+
+                return {
+                    "type": "correo_success",
+                    "message": """Tu solicitud de correo fue recibida correctamente.
+
+El área de TI procesará tu solicitud."""
+                }
 
             url = f"{BACKEND_PUBLIC_URL}/correo/formato"
 
@@ -151,25 +246,22 @@ Una vez que lo subas procesaremos tu solicitud.
 
 1. Descarga el formato oficial
 2. Llénalo completamente
-3. Súbelo usando el botón +
+3. Asegúrate de que el formato esté nombrado correctamente (correo_formato.pdf)
+4. Súbelo usando el botón +
 
-Una vez que lo subas procesaremos tu solicitud.
-""",
+Procesaremos tu solicitud.""",
                 "fileName": "Formato_Solicitud_Correo.pdf",
                 "url": url
             }
 
-        else:
+        # ---------------------------
+        # PROBLEMA CORREO
+        # ---------------------------
 
-            session["status"] = "completed"
-
-            return {
-                "type": "correo_success",
-                "message": "Tu solicitud de correo fue recibida correctamente. Recibirás tus credenciales en breve."
-            }
+        # continuar diagnóstico con IA
 
     # =========================================
-    # IA NORMAL
+    # IA DIAGNÓSTICO
     # =========================================
 
     playbook = load_playbook(session["intent"])
@@ -180,7 +272,18 @@ Una vez que lo subas procesaremos tu solicitud.
     })
 
     system_prompt = f"""
-Eres un agente profesional de Mesa de Ayuda gubernamental.
+Eres un agente técnico de Mesa de Ayuda gubernamental.
+
+Tu objetivo es ayudar al usuario paso a paso.
+
+REGLAS:
+
+• SOLO da un paso de diagnóstico por respuesta
+• nunca des listas largas
+• pregunta siempre qué ocurrió después del paso
+
+Si después de varios intentos no se resuelve el problema,
+indica que será canalizado con un asesor técnico.
 
 Datos del usuario:
 
@@ -192,9 +295,7 @@ Piso: {session['user_data']['piso']}
 Problema reportado:
 {session['problem_description']}
 
-Nunca te identifiques con el nombre del usuario.
-
-Playbook:
+Playbook técnico:
 {playbook}
 """
 
@@ -202,8 +303,8 @@ Playbook:
 
     response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=400,
-        temperature=0.3,
+        max_tokens=300,
+        temperature=0.2,
         messages=messages
     )
 

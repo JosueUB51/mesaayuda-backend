@@ -6,7 +6,7 @@ def get_session(session_id):
         sessions[session_id] = {
             "intent": None,
             "step": 0,
-            "status": "collecting_user_data",  # collecting_user_data | active | completed
+            "status": "welcome",   # CAMBIO PDF
             "ticket_id": None,
             "vpn_form_uploaded": False,
             "correo_form_uploaded": False,
