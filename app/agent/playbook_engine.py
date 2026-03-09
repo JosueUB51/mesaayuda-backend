@@ -6,9 +6,7 @@ from app.config import OPENAI_API_KEY, MODEL, BACKEND_PUBLIC_URL
 from app.agent.memory import get_session
 from app.agent.router import classify_intent
 
-# =========================================
-# CONFIGURACIÓN
-# =========================================
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 USER_FIELDS = ["nombre", "area", "edificio", "piso"]
 
@@ -19,39 +17,29 @@ USER_QUESTIONS = [
     "¿En qué piso estás ubicado?"
 ]
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-# =========================================
-# CARGAR PLAYBOOK
-# =========================================
 
 def load_playbook(intent):
-    if not intent:
-        return None
-
     path = f"app/playbooks/{intent}.json"
-    if not json or not path:
-        return None
-
     if not os.path.exists(path):
         return None
 
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
-# =========================================
-# AGENTE PRINCIPAL
-# =========================================
 
 def run_intelligent_agent(session_id, user_input):
+
     session = get_session(session_id)
 
     session.setdefault("intent", None)
-    session.setdefault("status", "collecting_user_data")
+    session.setdefault("status", "intent_detection")
     session.setdefault("user_step", 0)
+    session.setdefault("problem_description", None)
     session.setdefault("history", [])
+
     session.setdefault("vpn_form_uploaded", False)
     session.setdefault("correo_form_uploaded", False)
+
     session.setdefault("user_data", {
         "nombre": None,
         "area": None,
@@ -60,57 +48,88 @@ def run_intelligent_agent(session_id, user_input):
     })
 
     # =========================================
-    # FASE 1 — RECOLECCIÓN DE DATOS
+    # 1 DETECTAR INTENCIÓN PRIMERO
+    # =========================================
+
+    if session["status"] == "intent_detection":
+
+        intent = classify_intent(user_input)
+        session["intent"] = intent
+
+        if intent == "otro":
+            return """Hola 👋
+
+Puedo ayudarte con los siguientes servicios:
+
+• Internet
+• VPN
+• Correo institucional
+• Sistemas
+
+Por favor describe tu problema."""
+
+        session["status"] = "collecting_user_data"
+
+        return USER_QUESTIONS[0]
+
+    # =========================================
+    # 2 RECOLECCIÓN DE DATOS
     # =========================================
 
     if session["status"] == "collecting_user_data":
-        if session["user_step"] == 0 and session["user_data"]["nombre"] is None:
-            session["user_step"] = 1
-            return USER_QUESTIONS[0]
 
-        field_index = session["user_step"] - 1
+        field_index = session["user_step"]
 
-        if 0 <= field_index < len(USER_FIELDS):
+        if field_index < len(USER_FIELDS):
             field_name = USER_FIELDS[field_index]
             session["user_data"][field_name] = user_input
 
-        if session["user_step"] < len(USER_FIELDS):
-            question = USER_QUESTIONS[session["user_step"]]
             session["user_step"] += 1
-            return question
 
+            if session["user_step"] < len(USER_FIELDS):
+                return USER_QUESTIONS[session["user_step"]]
+
+        session["status"] = "collecting_problem"
+
+        return "Gracias. Ahora descríbeme tu problema."
+
+    # =========================================
+    # 3 GUARDAR PROBLEMA
+    # =========================================
+
+    if session["status"] == "collecting_problem":
+
+        session["problem_description"] = user_input
         session["status"] = "active"
-        session["user_step"] = None
-        return f"Gracias {session['user_data']['nombre']}. Ahora descríbeme tu problema."
-
-    # =========================================
-    # CLASIFICAR INTENCIÓN
-    # =========================================
-    if session["intent"] is None:
-        session["intent"] = classify_intent(user_input)
 
     # =========================================
     # FLUJO VPN
     # =========================================
+
     if session["intent"] == "vpn":
+
         if not session["vpn_form_uploaded"]:
-            url = f"{BACKEND_PUBLIC_URL}/vpn/formato" if BACKEND_PUBLIC_URL else "/vpn/formato"
+
+            url = f"{BACKEND_PUBLIC_URL}/vpn/formato"
+
             return {
                 "type": "vpn_download",
                 "message": """Para continuar con tu solicitud de VPN:
 
-1. Descarga el formato oficial.
-2. Llénalo completamente.
-3. Súbelo usando el botón "+".
+1. Descarga el formato oficial
+2. Llénalo completamente
+3. Súbelo usando el botón +
 
-Una vez que lo subas, procesaremos tu solicitud.
+Una vez que lo subas procesaremos tu solicitud.
 """,
                 "fileName": "Formato_Solicitud_VPN.pdf",
                 "url": url
             }
+
         else:
-            session["intent"] = None
+
             session["status"] = "completed"
+
             return {
                 "type": "vpn_success",
                 "message": "Tu solicitud de VPN fue recibida correctamente. Recibirás tus credenciales en tu correo institucional."
@@ -119,64 +138,80 @@ Una vez que lo subas, procesaremos tu solicitud.
     # =========================================
     # FLUJO CORREO
     # =========================================
+
     if session["intent"] == "correo":
+
         if not session["correo_form_uploaded"]:
-            url = f"{BACKEND_PUBLIC_URL}/correo/formato" if BACKEND_PUBLIC_URL else "/correo/formato"
+
+            url = f"{BACKEND_PUBLIC_URL}/correo/formato"
+
             return {
                 "type": "correo_download",
                 "message": """Para solicitar un correo institucional:
 
-1. Descarga el formato oficial.
-2. Llénalo completamente.
-3. Súbelo usando el botón "+".
+1. Descarga el formato oficial
+2. Llénalo completamente
+3. Súbelo usando el botón +
 
-Una vez que lo subas, procesaremos tu solicitud.
+Una vez que lo subas procesaremos tu solicitud.
 """,
                 "fileName": "Formato_Solicitud_Correo.pdf",
                 "url": url
             }
+
         else:
-            session["intent"] = None
+
             session["status"] = "completed"
+
             return {
                 "type": "correo_success",
                 "message": "Tu solicitud de correo fue recibida correctamente. Recibirás tus credenciales en breve."
             }
 
     # =========================================
-    # AGENTE IA NORMAL
+    # IA NORMAL
     # =========================================
+
     playbook = load_playbook(session["intent"])
 
-    session["history"].append({"role": "user", "content": user_input})
+    session["history"].append({
+        "role": "user",
+        "content": user_input
+    })
 
     system_prompt = f"""
 Eres un agente profesional de Mesa de Ayuda gubernamental.
+
+Datos del usuario:
 
 Nombre: {session['user_data']['nombre']}
 Área: {session['user_data']['area']}
 Edificio: {session['user_data']['edificio']}
 Piso: {session['user_data']['piso']}
 
+Problema reportado:
+{session['problem_description']}
+
+Nunca te identifiques con el nombre del usuario.
+
 Playbook:
 {playbook}
-
-Responde profesionalmente y de forma conversacional.
 """
 
     messages = [{"role": "system", "content": system_prompt}] + session["history"]
 
-    try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            max_tokens=400,
-            temperature=0.4,
-            messages=messages
-        )
-        answer = response.choices[0].message.content
-        session["history"].append({"role": "assistant", "content": answer})
-        return answer
+    response = client.chat.completions.create(
+        model=MODEL,
+        max_tokens=400,
+        temperature=0.3,
+        messages=messages
+    )
 
-    except Exception as e:
-        print("ERROR OPENAI:", e)
-        return "Ocurrió un error procesando tu solicitud. Intenta nuevamente."
+    answer = response.choices[0].message.content
+
+    session["history"].append({
+        "role": "assistant",
+        "content": answer
+    })
+
+    return answer
